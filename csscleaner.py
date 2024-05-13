@@ -126,8 +126,9 @@ def checkForUnusedKeys(fileLocation, keys):
         file = f.read()
 
         # Check to make sure there's a usage of "classes.keyName" in the file
+        # This is purposely ambiguous in the case that it's not named classes
         for i in keys:
-            count = file.count(str("classes." + i.name))
+            count = file.count(str("." + i.name))
 
             if count == 0:
                 unusedKeys.append(i)
@@ -142,18 +143,18 @@ def removeUnusedKeys(fileInformation, unusedKeys):
 
     with open(fileInformation.fileLocation, 'w') as w:
         for lineNumber in range(len(lines)):
+            shouldWriteLine = True
             # If we're in the range of lines in the file where useStyles is
             if fileInformation.hookEndLine - 1 > lineNumber > fileInformation.hookStartLine - 1:
                 # Then go through unused keys and see if it matches the section where we are
                 for unusedKey in unusedKeys:
-                    # Either break if the unused key is in the section, or write the line since it is used and then break to prevent writing the same line when we check each key
+                    # Set shouldWriteLine to false if the unused key is in the section
+                    # then break out since we're not going to write this line no matter what the rest of the keys are
                     if unusedKey.start - 1 <= lineNumber <= unusedKey.end - 1:
+                        shouldWriteLine = False
                         break
-                    else:
-                        w.write(lines[lineNumber])
-                        break
-            # If it's not in the range of useStyles, just write the line
-            else:
+
+            if shouldWriteLine:
                 w.write(lines[lineNumber])
         w.close()
 
