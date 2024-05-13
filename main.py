@@ -27,6 +27,7 @@ class BracketStack():
         return len(self.stack)
 
 
+#Object for information about each file that's being parsed
 class UseStylesFileInformation():
     def __init__(self, fileLocation):
         self.fileLocation = fileLocation
@@ -36,6 +37,7 @@ class UseStylesFileInformation():
         self.unusedKeys = []
 
 
+#Info for each key in the object being parsed
 class UseStylesKeyInformation():
     def __init__(self, name, start, end):
         self.name = name
@@ -44,7 +46,6 @@ class UseStylesKeyInformation():
 
 
 # This does a DFS through the directories, adding each tsx file path to a list to be iterated over later.
-# Use a set instead of a list actually for constant time lookups
 def getAllTsxFiles(srcPath):
     directories = [x[0] for x in os.walk(srcPath)]
     files = set()
@@ -62,7 +63,6 @@ def getAllTsxFiles(srcPath):
 #At that line, start reading in parhenteses and brackets
 #When they match one another, stop reading in.
 
-
 def getUseStylesHookLocation(file):
     stack = BracketStack([])
 
@@ -71,20 +71,25 @@ def getUseStylesHookLocation(file):
         useStylesStart = None
         useStylesEnd = None
 
-        for line in f.readlines():
-            lineCount += 1
-            if useStylesStart is None and line.find('useStyles') != -1:
-                useStylesStart = lineCount
 
-            if useStylesStart is not None:
-                for char in line:
-                    stack.operate(char)
+        # This is here to catch a case where the formatting of one of the lines isn't able to be read in.  In this rare case, better to just return None and keep on going
+        try:
+            for line in f.readlines():
+                lineCount += 1
+                if useStylesStart is None and line.find('useStyles') != -1:
+                    useStylesStart = lineCount
 
-            if useStylesEnd is None and useStylesStart is not None and stack.getLength() == 0:
-                useStylesEnd = lineCount
+                if useStylesStart is not None:
+                    for char in line:
+                        stack.operate(char)
 
-            if useStylesStart is not None and useStylesEnd is not None:
-                return useStylesStart, useStylesEnd
+                if useStylesEnd is None and useStylesStart is not None and stack.getLength() == 0:
+                    useStylesEnd = lineCount
+
+                if useStylesStart is not None and useStylesEnd is not None:
+                    return useStylesStart, useStylesEnd
+        except:
+            return None
 
 
 def getUseStylesKeys(fileLocation, lineStart, lineEnd):
@@ -134,26 +139,25 @@ def checkForUnusedKeys(fileLocation, keys):
 
 def removeUnusedKeys(fileInformation, unusedKeys):
     with open(fileInformation.fileLocation, 'r') as f:
-        with open(fileInformation.fileLocation[-10:] + 'test.tsx', 'w') as w:
-            lines = f.readlines()
+        lines = f.readlines()
+        f.close()
+
+        with open(fileInformation.fileLocation, 'w') as w:
             for lineNumber in range(len(lines)):
-                if fileInformation.hookEndLine - 1 > lineNumber >= fileInformation.hookStartLine - 1:
+                if fileInformation.hookEndLine - 1 > lineNumber > fileInformation.hookStartLine - 1:
                     for unusedKey in unusedKeys:
                         if unusedKey.start - 1 <= lineNumber <= unusedKey.end - 1:
-                            print(lineNumber)
                             break
                         else:
                             w.write(lines[lineNumber])
+                            break
                 else:
                     w.write(lines[lineNumber])
             w.close()
-        f.close()
-
-
 
 
 def main():
-    #try:
+    try:
         srcPath = sys.argv[1]
         useStylesFileInformation = []
 
@@ -172,18 +176,8 @@ def main():
                 if len(i.unusedKeys) > 0:
                     removeUnusedKeys(i, i.unusedKeys)
 
-        #for i in useStylesFileInformation:
-        #    print(i.unusedKeys)
-
-        #for i in keys:
-        #   check = checkForUnusedKeys(i[0], i[1])
-        #    if len(check[1]):
-        #        filesWithUnusedKeys.append(check)
-
-
-
-    #except:
-    #    print("No argument for src path was provided")
+    except IndexError:
+        print("No argument for src path was provided")
 
 
 if __name__ == '__main__':
