@@ -18,11 +18,6 @@ class BracketStack():
         if item in self.popBracketCharacters:
             self.stack.pop()
 
-    def operateByLine(self, line):
-        for char in self.pushBracketCharacters:
-            count = line.count(char)
-            if count != 0:
-                self.stack.append()
     def getLength(self):
         return len(self.stack)
 
@@ -71,7 +66,6 @@ def getUseStylesHookLocation(file):
         useStylesStart = None
         useStylesEnd = None
 
-
         # This is here to catch a case where the formatting of one of the lines isn't able to be read in.  In this rare case, better to just return None and keep on going
         try:
             for line in f.readlines():
@@ -94,32 +88,35 @@ def getUseStylesHookLocation(file):
 
 def getUseStylesKeys(fileLocation, lineStart, lineEnd):
     with open(fileLocation, 'r') as f:
-        hookLines = f.readlines()[lineStart:lineEnd]
+        useStylesLines = f.readlines()[lineStart:lineEnd]
         keys = []
 
         lineNumber = lineStart
 
-        for i in hookLines:
+        for i in useStylesLines:
             lineNumber += 1
 
+            # Checking for lines that are indented a single tab
             expression = re.compile("^ {4}([a-zA-Z]+)", flags=re.MULTILINE)
             result = expression.finditer(i.strip('\n'))
 
+            # For each match, strip the whitespace, mark the line it was found on
             for match in result:
                 key = str(match.group()).strip()
                 keyLineStart = lineNumber
                 keyLineEnd = None
 
+                # If we have other keys already, mark the end of the last key to be the line before the start of this one
                 if len(keys):
                     keys[-1].end = keyLineStart - 1
 
                 keys.append(UseStylesKeyInformation(key, keyLineStart, keyLineEnd))
 
+        # Marks the final key's ending line to be the line before the end of the hook
         if len(keys):
             keys[-1].end = lineEnd - 1
 
         f.close()
-
         return keys
 
 def checkForUnusedKeys(fileLocation, keys):
@@ -128,6 +125,7 @@ def checkForUnusedKeys(fileLocation, keys):
     with open(fileLocation, 'r') as f:
         file = f.read()
 
+        # Check to make sure there's a usage of "classes.keyName" in the file
         for i in keys:
             count = file.count(str("classes." + i.name))
 
@@ -142,25 +140,31 @@ def removeUnusedKeys(fileInformation, unusedKeys):
         lines = f.readlines()
         f.close()
 
-        with open(fileInformation.fileLocation, 'w') as w:
-            for lineNumber in range(len(lines)):
-                if fileInformation.hookEndLine - 1 > lineNumber > fileInformation.hookStartLine - 1:
-                    for unusedKey in unusedKeys:
-                        if unusedKey.start - 1 <= lineNumber <= unusedKey.end - 1:
-                            break
-                        else:
-                            w.write(lines[lineNumber])
-                            break
-                else:
-                    w.write(lines[lineNumber])
-            w.close()
+    with open(fileInformation.fileLocation, 'w') as w:
+        for lineNumber in range(len(lines)):
+            # If we're in the range of lines in the file where useStyles is
+            if fileInformation.hookEndLine - 1 > lineNumber > fileInformation.hookStartLine - 1:
+                # Then go through unused keys and see if it matches the section where we are
+                for unusedKey in unusedKeys:
+                    # Either break if the unused key is in the section, or write the line since it is used and then break to prevent writing the same line when we check each key
+                    if unusedKey.start - 1 <= lineNumber <= unusedKey.end - 1:
+                        break
+                    else:
+                        w.write(lines[lineNumber])
+                        break
+            # If it's not in the range of useStyles, just write the line
+            else:
+                w.write(lines[lineNumber])
+        w.close()
 
 
 def main():
     try:
+        # Gets the path passed in when this script is run
         srcPath = sys.argv[1]
         useStylesFileInformation = []
 
+        # Gets all .tsx files and stubs out the objects
         for file in getAllTsxFiles(srcPath):
             useStylesFileInformation.append(UseStylesFileInformation(file))
 
